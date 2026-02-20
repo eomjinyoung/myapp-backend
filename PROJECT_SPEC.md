@@ -49,6 +49,7 @@
     - Brute Force 방어: 5회 연속 로그인 실패 시 15분간 해당 계정을 잠금 처리함 (403 Forbidden).
     - Audit Logging: AOP와 @AuditLog 어노테이션을 사용하여 주요 보안 이벤트(로그인, 로그아웃, 재발급, 비번변경)를 `logs/audit.log`에 JSON Lines 형식으로 기록.
     - CSRF/Login/Logout: 비활성화 (무상태 인증 아키텍처이므로 `csrf`, `formLogin`, `httpBasic`, `logout` 비활성화).
+    - CORS: `http://localhost:3000`으로부터의 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` 요청 허용.
     - H2 Console: 접근을 위한 프레임 옵션 설정 (`sameOrigin`).
 - **Exception Handling**: 모든 예외는 `ErrorResponseDto` 객체에 담겨 JSON 형식으로 반환됨. 인증 실패 시 401 Unauthorized 응답.
 
