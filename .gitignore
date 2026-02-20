@@ -1,0 +1,18 @@
+# H2 Database
+/data/
+*.mv.db
+*.trace.db
+
+# Build
+/build/
+.gradle/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.DS_Store
+
+# Logs
+/logs/
+debug_log.txt
