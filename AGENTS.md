@@ -6,7 +6,7 @@
 > 프로젝트의 상세 기능 및 기술 스택은 [README.md](file:///Users/eomjinyoung/git/myapp-backend/README.md)를 참고한다.
 
 ## 1. 코딩 가이드라인 (Coding Guidelines)
-- **Build Tool**: Gradle 9.3.0 (Groovy DSL). **반드시 Gradle Wrapper(`./gradlew`)를 사용하여 빌드 및 태스크를 실행한다.**
+- **Build Tool**: Gradle 9.3.1 (Groovy DSL). **모든 Gradle 관련 태스크 및 명령어 실행 시 반드시 Gradle Wrapper(`./gradlew`)를 사용한다.**
 - **DTO 규칙**: 
   - 모든 Data Transfer Object는 이름 끝에 `Dto` 접미사를 붙인다 (예: `UserSignupDto`, `PostResponseDto`).
   - 대소문자 표기법을 통일하고 불필요한 레거시 클래스 생성을 지양한다.
