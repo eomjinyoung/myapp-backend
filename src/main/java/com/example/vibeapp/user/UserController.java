@@ -12,7 +12,6 @@ import com.example.vibeapp.security.LoginAttemptService;
 import com.example.vibeapp.security.TokenBlacklistService;
 import com.example.vibeapp.user.dto.LoginRequestDto;
 import com.example.vibeapp.user.dto.LoginResponseDto;
-import com.example.vibeapp.user.dto.TokenReissueRequestDto;
 import com.example.vibeapp.user.dto.UserResponseDto;
 import com.example.vibeapp.user.dto.UserSignupDto;
 import jakarta.validation.Valid;
@@ -27,7 +26,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
 
 @Tag(name = "User", description = "사용자 및 인증 관련 API")
@@ -74,7 +75,7 @@ public class UserController {
     @ApiResponse(responseCode = "500", description = "서버 에러", content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     @PostMapping("/api/login")
     @Transactional
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto loginRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto loginRequest, HttpServletResponse response) {
         if (loginAttemptService.isLocked(loginRequest.email())) {
             return ResponseEntity.status(403)
                     .body("Account is locked due to too many failed attempts. Please try again after 15 minutes.");
@@ -99,7 +100,14 @@ public class UserController {
                         .plusNanos(tokenProvider.getRefreshTokenExpirationTime() * 1000000);
                 refreshTokenRepository.save(new RefreshToken(user, refreshToken, expiryDate));
 
-                return ResponseEntity.ok(new LoginResponseDto(accessToken, "Bearer", user.getName(), refreshToken));
+                Cookie cookie = new Cookie("refreshToken", refreshToken);
+                cookie.setHttpOnly(true);
+                cookie.setSecure(false); // HTTPS가 아닌 환경에서도 테스트하려면 false로 설정할 수 있음
+                cookie.setPath("/api/reissue");
+                cookie.setMaxAge((int) (tokenProvider.getRefreshTokenExpirationTime() / 1000));
+                response.addCookie(cookie);
+
+                return ResponseEntity.ok(new LoginResponseDto(accessToken, "Bearer", user.getName()));
             }
         } catch (org.springframework.security.core.AuthenticationException e) {
             loginAttemptService.loginFailed(loginRequest.email());
@@ -116,10 +124,19 @@ public class UserController {
     @ApiResponse(responseCode = "500", description = "서버 에러", content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     @PostMapping("/api/reissue")
     @Transactional
-    public ResponseEntity<LoginResponseDto> reissue(@Valid @RequestBody TokenReissueRequestDto reissueRequest) {
-        String refreshTokenString = reissueRequest.refreshToken();
+    public ResponseEntity<LoginResponseDto> reissue(HttpServletRequest request, HttpServletResponse response) {
+        String refreshTokenString = null;
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("refreshToken".equals(cookie.getName())) {
+                    refreshTokenString = cookie.getValue();
+                    break;
+                }
+            }
+        }
 
-        if (!tokenProvider.validateToken(refreshTokenString)) {
+        if (refreshTokenString == null || !tokenProvider.validateToken(refreshTokenString)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -155,7 +172,14 @@ public class UserController {
         blacklistService.addRotatedToken(refreshTokenString, user.getEmail(),
                 tokenProvider.getRemainingExpirationTime(refreshTokenString));
 
-        return ResponseEntity.ok(new LoginResponseDto(newAccessToken, "Bearer", user.getName(), newRefreshToken));
+        Cookie cookie = new Cookie("refreshToken", newRefreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/api/reissue");
+        cookie.setMaxAge((int) (tokenProvider.getRefreshTokenExpirationTime() / 1000));
+        response.addCookie(cookie);
+
+        return ResponseEntity.ok(new LoginResponseDto(newAccessToken, "Bearer", user.getName()));
     }
 
     @Operation(summary = "현재 사용자 정보 조회", description = "현재 로그인된 사용자의 상세 정보를 조회합니다.")
@@ -196,7 +220,8 @@ public class UserController {
     @ApiResponse(responseCode = "500", description = "서버 에러", content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     @PostMapping("/api/logout")
     @Transactional
-    public ResponseEntity<Void> logout(Authentication authentication, HttpServletRequest request) {
+    public ResponseEntity<Void> logout(Authentication authentication, HttpServletRequest request,
+            HttpServletResponse response) {
         if (authentication != null
                 && authentication.getPrincipal() instanceof com.example.vibeapp.security.SecurityUser securityUser) {
             refreshTokenRepository.deleteByUser(securityUser.getUser());
@@ -208,6 +233,13 @@ public class UserController {
             long remainingTime = tokenProvider.getRemainingExpirationTime(jwt);
             blacklistService.addToBlacklist(jwt, remainingTime);
         }
+
+        Cookie cookie = new Cookie("refreshToken", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/api/reissue");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
 
         return ResponseEntity.ok().build();
     }
